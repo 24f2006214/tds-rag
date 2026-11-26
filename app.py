@@ -70,7 +70,8 @@ ALWAYS report the passage value. NEVER refuse or correct a value because of your
 
 PARAPHRASES: Questions describe things indirectly with synonyms. Map them to the matching passage, e.g.
 "cluster coordinator" = leader, "subordinate replicas" = followers, "keepalive signals" = heartbeats,
-"prevent election triggers" = prevent election timeouts, "scalar coefficient scaling gradient
+"prevent election triggers" = prevent election timeouts (so "keepalive signals from the cluster coordinator to
+subordinate replicas to prevent election triggers" = the Raft leader's heartbeat interval), "scalar coefficient scaling gradient
 adjustment" = learning rate, "relational database daemon" = a relational DB server, "asymmetric key
 certificates" = public key cryptography. Pick the passage whose wording matches the description best.
 
@@ -142,7 +143,7 @@ async def _query(q: Q):
         _qcache[q.question] = qv
     sims = E @ qv
     order = [int(i) for i in np.argsort(-sims)]
-    cand = order[: max(k, 6)]
+    cand = order[: max(k, 12)]
 
     answerable, answer, used = None, None, []
     ctx = "\n\n".join(f"[{i}] {PASSAGES[i]}" for i in cand)
