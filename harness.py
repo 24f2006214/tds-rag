@@ -1,6 +1,7 @@
 """TDS GA5 Q4 - Harness safety router.  POST /harness"""
 import asyncio, json, os
 import httpx
+import harness_rules
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -88,24 +89,14 @@ def finalize(case, out):
 
 
 async def classify(policy, case):
-    async with SEM:
-        for attempt in range(2):
-            try:
-                r = await client.post(
-                    f"{BASE}/chat/completions", headers={"Authorization": f"Bearer {TOKEN}"},
-                    json={"model": MODEL, "temperature": 0, "response_format": {"type": "json_object"},
-                          "messages": [{"role": "system", "content": GUIDE},
-                                       {"role": "user", "content": "POLICY:\n" + json.dumps(policy) +
-                                        "\n\nCASE:\n" + json.dumps(case)}]})
-                out = json.loads(r.json()["choices"][0]["message"]["content"])
-                res = finalize(case, out)
-                res_debug = {"case": case, "llm": out, "result": res}
-                LAST.setdefault("cur", []).append(res_debug)
-                print("CASE", json.dumps({"in": case.get("caseId"), "llm": out, "res": res})[:1500], flush=True)
-                return res
-            except Exception as e:
-                print("harness LLM error:", repr(e), flush=True)
-        return finalize(case, {"requestDecision": "review", "toolRaw": "review", "security": "none"})
+    try:
+        res, why = harness_rules.classify(case)
+    except Exception as e:
+        print("rule error:", repr(e), flush=True)
+        res = finalize(case, {"requestDecision": "review", "toolRaw": "review", "security": "none"})
+        why = ["error"]
+    LAST.setdefault("cur", []).append({"case": case, "why": why, "result": res})
+    return res
 
 
 @router.post("/harness")
