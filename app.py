@@ -52,6 +52,8 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
+from harness import router as harness_router
+app.include_router(harness_router)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
