@@ -8,6 +8,7 @@ BASE = os.getenv("AIPIPE_BASE", "https://aipipe.org/openai/v1")
 TOKEN = os.getenv("AIPIPE_TOKEN", "")
 MODEL = os.getenv("HARNESS_MODEL", "gpt-4.1-mini")
 router = APIRouter()
+LAST = {"batches": []}
 client = httpx.AsyncClient(timeout=httpx.Timeout(40.0, connect=5.0))
 SEM = asyncio.Semaphore(int(os.getenv("HARNESS_CONCURRENCY", "24")))
 
@@ -98,6 +99,8 @@ async def classify(policy, case):
                                         "\n\nCASE:\n" + json.dumps(case)}]})
                 out = json.loads(r.json()["choices"][0]["message"]["content"])
                 res = finalize(case, out)
+                res_debug = {"case": case, "llm": out, "result": res}
+                LAST.setdefault("cur", []).append(res_debug)
                 print("CASE", json.dumps({"in": case.get("caseId"), "llm": out, "res": res})[:1500], flush=True)
                 return res
             except Exception as e:
@@ -110,5 +113,13 @@ async def harness(request: Request):
     body = await request.json()
     cases = body.get("cases", [])
     results = await asyncio.gather(*(classify(body.get("policy"), c) for c in cases))
+    LAST["batches"] = (LAST["batches"] + [body.get("batchId")])[-4:]
+    LAST["policy"] = body.get("policy")
     return JSONResponse({"profile": body.get("profile"), "batchId": body.get("batchId"), "results": results},
                         media_type="application/json")
+
+
+@router.get("/harness/last")
+async def harness_last():
+    """Debug: the cases, model judgements and final labels from the most recent Check (up to 96)."""
+    return JSONResponse({"batches": LAST["batches"], "policy": LAST.get("policy"), "items": LAST.get("cur", [])[-96:]})
